@@ -5,6 +5,10 @@ require_dependency 'search'
 
 describe Search do
 
+  class TextHelper
+    extend ActionView::Helpers::TextHelper
+  end
+
   before do
     ActiveRecord::Base.observers.enable :search_observer
   end
@@ -92,6 +96,10 @@ describe Search do
     Search.new('foo :!$);}]>@\#\"\'').execute.should be_blank # There are at least three levels of sanitation for Search.query!
   end
 
+  it "doesn't raise an error when single quotes are present" do
+    Search.new("'hello' world").execute.should be_blank # There are at least three levels of sanitation for Search.query!
+  end
+
   it 'works when given two terms with spaces' do
     lambda { Search.new('evil trout').execute }.should_not raise_error
   end
@@ -121,14 +129,64 @@ describe Search do
   context 'topics' do
     let(:topic) { Fabricate(:topic) }
 
+
+    context 'search within topic' do
+
+      def new_post(raw, topic)
+        Fabricate(:post, topic: topic, topic_id: topic.id, user: topic.user, raw: raw)
+      end
+
+      it 'displays multiple results within a topic' do
+
+        SiteSetting.stubs(:min_posts_for_search_in_topic).returns(3)
+
+        topic = Fabricate(:topic)
+        topic2 = Fabricate(:topic)
+
+        new_post('this is the other post I am posting', topic2)
+        post1 = new_post('this is the other post I am posting', topic)
+        post2 = new_post('this is my first post I am posting', topic)
+        post3 = new_post('this is a real long and complicated bla this is my second post I am Posting birds
+                         with more stuff bla bla', topic)
+        post4 = new_post('this is my fourth post I am posting', topic)
+        new_post('this is my fifth post I am posting', topic2)
+
+        # update posts_count
+        topic.reload
+
+        results = Search.new('posting', search_context: post1.topic).execute.find do |r|
+          r[:type] == "topic"
+        end[:results]
+
+        results.find{|r| r[:title].include? 'birds'}.should_not be_nil
+
+        results.map{|r| r[:id]}.should == [
+          post1.topic_id,
+          "_#{post2.id}",
+          "_#{post3.id}",
+          "_#{post4.id}",
+          topic2.id]
+
+        # trigger expanded search
+        results = Search.new('birds', search_context: post1.topic).execute
+
+        SiteSetting.stubs(:min_posts_for_search_in_topic).returns(10)
+        results = Search.new('posting', search_context: post1.topic).execute.find do |r|
+          r[:type] == "topic"
+        end[:results].length.should == 2
+
+      end
+    end
+
     context 'searching the OP' do
-      let!(:post) { Fabricate(:post, topic: topic, user: topic.user) }
-      let(:result) { first_of_type(Search.new('hello', type_filter: 'topic').execute, 'topic') }
+      let!(:post) { Fabricate(:post_with_long_raw_content, topic: topic, user: topic.user) }
+      let(:result) { first_of_type(Search.new('hundred', type_filter: 'topic', include_blurbs: true).execute, 'topic') }
 
       it 'returns a result correctly' do
         result.should be_present
         result[:title].should == topic.title
         result[:url].should == topic.relative_url
+        result[:blurb].should == TextHelper.excerpt(post.raw, 'hundred', radius: 100)
       end
     end
 
@@ -279,7 +337,7 @@ describe Search do
       # should find topic in searched category first
       Then          { first_of_type(search_cat, 'topic')[:id].should == topic.id }
       # results should also include topic without category
-      And          { result_ids_for_type(search_cat, 'topic').should include topic_no_cat.id } 
+      And          { result_ids_for_type(search_cat, 'topic').should include topic_no_cat.id }
 
     end
 

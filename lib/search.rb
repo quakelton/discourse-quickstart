@@ -26,6 +26,7 @@ class Search
       when :es then 'spanish'
       when :fr then 'french'
       when :it then 'italian'
+      when :ja then 'japanese'
       when :nl then 'dutch'
       when :pt then 'portuguese'
       when :sv then 'swedish'
@@ -43,8 +44,13 @@ class Search
     @opts = opts || {}
     @guardian = @opts[:guardian] || Guardian.new
     @search_context = @opts[:search_context]
+    @include_blurbs = @opts[:include_blurbs] || false
     @limit = Search.per_facet * Search.facets.size
     @results = GroupedSearchResults.new(@opts[:type_filter])
+
+    if @search_context.is_a?(Topic) && @search_context.posts_count < SiteSetting.min_posts_for_search_in_topic
+      @search_context = nil
+    end
   end
 
   # Query a term
@@ -81,6 +87,9 @@ class Search
 
       add_more_topics_if_expected
       @results
+    rescue ActiveRecord::StatementInvalid
+      # In the event of a PG:Error return nothing, it is likely they used a foreign language whose
+      # locale is not supported by postgres
     end
 
     # Add more topics if we expected them
@@ -93,14 +102,14 @@ class Search
         extra_posts = posts_query(expected_topics * Search.burst_factor)
         extra_posts = extra_posts.where("posts.topic_id NOT in (?)", @results.topic_ids) if @results.topic_ids.present?
         extra_posts.each do |p|
-          @results.add_result(SearchResult.from_post(p))
+          @results.add_result(SearchResult.from_post(p, @search_context, @term, @include_blurbs))
         end
       end
     end
 
     # If we're searching for a single topic
     def single_topic(id)
-      topic = Topic.where(id: id).first
+      topic = Topic.find_by(id: id)
       return nil unless @guardian.can_see?(topic)
 
       @results.add_result(SearchResult.from_topic(topic))
@@ -113,12 +122,18 @@ class Search
     end
 
     def category_search
+      # scope is leaking onto Category, this is not good and probably a bug in Rails
+      # the secure_category_ids will invoke the same method on User, it calls Category.where
+      # however the scope from the query below is leaking in to Category, this works around
+      # the issue while we figure out what is up in Rails
+      secure_category_ids
+
       categories = Category.includes(:category_search_data)
                            .where("category_search_data.search_data @@ #{ts_query}")
+                           .references(:category_search_data)
                            .order("topics_month DESC")
                            .secured(@guardian)
                            .limit(@limit)
-                           .references(:category_search_data)
 
       categories.each do |c|
         @results.add_result(SearchResult.from_category(c))
@@ -155,6 +170,9 @@ class Search
         elsif @search_context.is_a?(Category)
           # If the context is a category, restrict posts to that category
           posts = posts.order("CASE WHEN topics.category_id = #{@search_context.id} THEN 0 ELSE 1 END")
+        elsif @search_context.is_a?(Topic)
+          posts = posts.order("CASE WHEN topics.id = #{@search_context.id} THEN 0 ELSE 1 END,
+                               CASE WHEN topics.id = #{@search_context.id} THEN posts.post_number ELSE 999999 END")
         end
 
       end
@@ -164,9 +182,9 @@ class Search
                    .order("topics.bumped_at DESC")
 
       if secure_category_ids.present?
-        posts = posts.where("(categories.id IS NULL) OR (NOT categories.read_restricted) OR (categories.id IN (?))", secure_category_ids)
+        posts = posts.where("(categories.id IS NULL) OR (NOT categories.read_restricted) OR (categories.id IN (?))", secure_category_ids).references(:categories)
       else
-        posts = posts.where("(categories.id IS NULL) OR (NOT categories.read_restricted)")
+        posts = posts.where("(categories.id IS NULL) OR (NOT categories.read_restricted)").references(:categories)
       end
       posts.limit(limit)
     end
@@ -177,24 +195,28 @@ class Search
 
     def ts_query
       @ts_query ||= begin
-        escaped_term = PG::Connection.escape_string(@term.gsub(/[:()&!]/,''))
-        query = Post.sanitize(escaped_term.split.map {|t| "#{t}:*"}.join(" & "))
+        all_terms = @term.gsub(/[:()&!'"]/,'').split
+        query = Post.sanitize(all_terms.map {|t| "#{PG::Connection.escape_string(t)}:*"}.join(" & "))
         "TO_TSQUERY(#{query_locale}, #{query})"
       end
     end
 
     def topic_search
 
-      # If we have a user filter, search all posts by default with a higher limit
-      posts = if @search_context.present? and @search_context.is_a?(User)
-        posts_query(@limit * Search.burst_factor)
-      else
-        posts_query(@limit).where(post_number: 1)
-      end
+      posts = if @search_context.is_a?(User)
+                # If we have a user filter, search all posts by default with a higher limit
+                posts_query(@limit * Search.burst_factor)
+              elsif @search_context.is_a?(Topic)
+                posts_query(@limit).where('posts.post_number = 1 OR posts.topic_id = ?', @search_context.id)
+              else
+                posts_query(@limit).where(post_number: 1)
+              end
+
 
       posts.each do |p|
-        @results.add_result(SearchResult.from_post(p))
+        @results.add_result(SearchResult.from_post(p, @search_context, @term, @include_blurbs))
       end
+
     end
 
 end

@@ -11,6 +11,10 @@ class ActiveRecord::Base
     exec_sql(*args).cmd_tuples
   end
 
+  def self.sql_fragment(*sql_array)
+    ActiveRecord::Base.send(:sanitize_sql_array, sql_array)
+  end
+
   def exec_sql(*args)
     ActiveRecord::Base.exec_sql(*args)
   end

@@ -9,13 +9,40 @@
 Discourse.Route = Em.Route.extend({
 
   /**
-    Called every time we enter a route on Discourse.
+    NOT called every time we enter a route on Discourse.
+    Only called the FIRST time we enter a route.
+    So, when going from one topic to another, activate will only be called on the
+    TopicRoute for the first topic.
 
     @method activate
   **/
-  activate: function(router, context) {
+  activate: function() {
     this._super();
+    Em.run.scheduleOnce('afterRender', Discourse.Route, 'cleanDOM');
+  }
 
+});
+
+var routeBuilder;
+
+Discourse.Route.reopenClass({
+
+  buildRoutes: function(builder) {
+    var oldBuilder = routeBuilder;
+    routeBuilder = function() {
+      if (oldBuilder) oldBuilder.call(this);
+      return builder.call(this);
+    };
+  },
+
+  mapRoutes: function() {
+    Discourse.Router.map(function() {
+      routeBuilder.call(this);
+      this.route('unknown', {path: '*path'});
+    });
+  },
+
+  cleanDOM: function() {
     // Close mini profiler
     $('.profiler-results .profiler-result').remove();
 
@@ -26,23 +53,13 @@ Discourse.Route = Em.Route.extend({
     // close the lightbox
     if ($.magnificPopup && $.magnificPopup.instance) { $.magnificPopup.instance.close(); }
 
+    // Remove any link focus
+    $(document.activeElement).blur();
+
     Discourse.set('notifyCount',0);
-
+    $('#discourse-modal').modal('hide');
     var hideDropDownFunction = $('html').data('hide-dropdown');
-    if (hideDropDownFunction) return hideDropDownFunction();
-  }
-
-});
-
-
-Discourse.Route.reopenClass({
-
-  buildRoutes: function(builder) {
-    var oldBuilder = Discourse.routeBuilder;
-    Discourse.routeBuilder = function() {
-      if (oldBuilder) oldBuilder.call(this);
-      return builder.call(this);
-    };
+    if (hideDropDownFunction) { hideDropDownFunction(); }
   },
 
   /**

@@ -4,19 +4,24 @@ class BasicPostSerializer < ApplicationSerializer
              :name,
              :username,
              :avatar_template,
+             :uploaded_avatar_id,
              :created_at,
              :cooked
 
   def name
-    object.user.name
+    object.user.try(:name)
   end
 
   def username
-    object.user.username
+    object.user.try(:username)
   end
 
   def avatar_template
-    object.user.avatar_template
+    object.user.try(:avatar_template)
+  end
+
+  def uploaded_avatar_id
+    object.user.try(:uploaded_avatar_id)
   end
 
   def cooked
@@ -29,6 +34,10 @@ class BasicPostSerializer < ApplicationSerializer
     else
       object.filter_quotes(@parent_post)
     end
+  end
+
+  def include_name?
+    SiteSetting.enable_names?
   end
 
 end

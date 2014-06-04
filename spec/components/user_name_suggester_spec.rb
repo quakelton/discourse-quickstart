@@ -10,6 +10,9 @@ describe UserNameSuggester do
   end
 
   describe '.suggest' do
+    before do
+      User.stubs(:username_length).returns(3..15)
+    end
 
     it "doesn't raise an error on nil username" do
       UserNameSuggester.suggest(nil).should be_nil
@@ -17,6 +20,10 @@ describe UserNameSuggester do
 
     it 'corrects weird characters' do
       UserNameSuggester.suggest("Darth%^Vader").should == 'Darth_Vader'
+    end
+
+    it "transliterates some characters" do
+      UserNameSuggester.suggest("Jørn").should == 'Jorn'
     end
 
     it 'adds 1 to an existing username' do

@@ -52,16 +52,16 @@ class PostTiming < ActiveRecord::Base
   end
 
 
-  def self.destroy_for(user_id, topic_id)
+  def self.destroy_for(user_id, topic_ids)
     PostTiming.transaction do
-      PostTiming.delete_all(['user_id = ? and topic_id = ?', user_id, topic_id])
-      TopicUser.delete_all(['user_id = ? and topic_id = ?', user_id, topic_id])
+      PostTiming.delete_all(['user_id = ? and topic_id in (?)', user_id, topic_ids])
+      TopicUser.delete_all(['user_id = ? and topic_id in (?)', user_id, topic_ids])
     end
   end
 
 
   def self.process_timings(current_user, topic_id, topic_time, timings)
-    current_user.update_time_read!
+    current_user.user_stat.update_time_read!
 
     highest_seen = 1
     timings.each do |post_number, time|
@@ -104,4 +104,3 @@ end
 #  post_timings_summary  (topic_id,post_number)
 #  post_timings_unique   (topic_id,post_number,user_id) UNIQUE
 #
-

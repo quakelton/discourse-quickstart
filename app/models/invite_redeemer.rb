@@ -8,6 +8,23 @@ InviteRedeemer = Struct.new(:invite) do
     invited_user
   end
 
+  # extracted from User cause it is very specific to invites
+  def self.create_user_from_invite(invite)
+    username = UserNameSuggester.suggest(invite.email)
+
+    DiscourseHub.username_operation do
+      match, available, suggestion = DiscourseHub.username_match?(username, invite.email)
+      username = suggestion unless match || available
+    end
+
+    user = User.new(email: invite.email, username: username, name: username, active: true, trust_level: SiteSetting.default_invitee_trust_level)
+    user.save!
+
+    DiscourseHub.username_operation { DiscourseHub.register_username(username, invite.email) }
+
+    user
+  end
+
   private
 
   def invited_user
@@ -17,6 +34,7 @@ InviteRedeemer = Struct.new(:invite) do
   def process_invitation
     add_to_private_topics_if_invited
     add_user_to_invited_topics
+    add_user_to_groups
     send_welcome_message
     approve_account_if_needed
     notify_invitee
@@ -34,18 +52,15 @@ InviteRedeemer = Struct.new(:invite) do
 
   def get_invited_user
     result = get_existing_user
-    result ||= create_new_user
+    result ||= InviteRedeemer.create_user_from_invite(invite)
     result.send_welcome_message = false
     result
   end
 
   def get_existing_user
-    User.where(email: invite.email).first
+    User.find_by(email: invite.email)
   end
 
-  def create_new_user
-    User.create_for_email(invite.email, trust_level: SiteSetting.default_invitee_trust_level)
-  end
 
   def add_to_private_topics_if_invited
     invite.topics.private_messages.each do |t|
@@ -58,6 +73,12 @@ InviteRedeemer = Struct.new(:invite) do
       i.topics.each do |t|
         t.topic_allowed_users.create(user_id: invited_user.id)
       end
+    end
+  end
+
+  def add_user_to_groups
+    invite.groups.each do |g|
+      invited_user.group_users.create(group_id: g.id)
     end
   end
 

@@ -96,12 +96,16 @@ page.runTests = function(){
   });
 
   test("expect a log in button", function(){
-    return $('.current-username .btn').text() === 'Log In';
+    return $('.login-button').text().trim() === 'Sign In';
   });
 
   navigate("navigate to first topic", function(){
     Em.run.later(function(){
-      $('.main-link a:first').click();
+      if ($('.main-link > a:first').length > 0) {
+        $('.main-link > a:first').click(); // topic list page
+      } else {
+        $('.featured-topic a.title:first').click(); // categories page
+      }
     }, 500);
   });
 
@@ -113,12 +117,16 @@ page.runTests = function(){
     // for whatever reason the clicks do not respond at the begining
     //  defering
     Em.run.later(function(){
+
+      // Remove the popup action for testing
+      $('.topic-meta-data a:first').data('ember-action', '');
+
       $('.topic-meta-data a:first').focus().click();
     },500);
   });
 
-  test("has about me section",function(){
-    return $('.about-me').length === 1;
+  test("has details",function(){
+    return $('#poster-expansion .names').length === 1;
   });
 
   run();

@@ -1,4 +1,6 @@
 class Group < ActiveRecord::Base
+  include HasCustomFields
+
   has_many :category_groups
   has_many :group_users, dependent: :destroy
 
@@ -8,6 +10,7 @@ class Group < ActiveRecord::Base
   after_save :destroy_deletions
 
   validate :name_format_validator
+  validates_uniqueness_of :name
 
   AUTO_GROUPS = {
     :everyone => 0,
@@ -20,6 +23,35 @@ class Group < ActiveRecord::Base
     :trust_level_4 => 14,
     :trust_level_5 => 15
   }
+
+  ALIAS_LEVELS = {
+    :nobody => 0,
+    :only_admins => 1,
+    :mods_and_admins => 2,
+    :members_mods_and_admins => 3,
+    :everyone => 99
+  }
+
+  validate :alias_level, inclusion: { in: ALIAS_LEVELS.values}
+
+  def posts_for(guardian, before_post_id=nil)
+    user_ids = group_users.map {|gu| gu.user_id}
+    result = Post.where(user_id: user_ids).includes(:user, :topic).references(:posts, :topics)
+                 .where('topics.archetype <> ?', Archetype.private_message)
+                 .where(post_type: Post.types[:regular])
+
+    unless guardian.is_staff?
+      allowed_ids = guardian.allowed_category_ids
+      if allowed_ids.length > 0
+        result = result.where('topics.category_id IS NULL or topics.category_id IN (?)', allowed_ids)
+      else
+        result = result.where('topics.category_id IS NULL')
+      end
+    end
+
+    result = result.where('posts.id < ?', before_post_id) if before_post_id
+    result.order('posts.created_at desc')
+  end
 
   def self.trust_group_ids
     (10..19).to_a
@@ -89,20 +121,65 @@ class Group < ActiveRecord::Base
     end
   end
 
+  def self.ensure_automatic_groups!
+    AUTO_GROUPS.keys.each do |name|
+      refresh_automatic_group!(name) unless lookup_group(name)
+    end
+  end
+
   def self.[](name)
     lookup_group(name) || refresh_automatic_group!(name)
   end
 
+  def self.search_group(name, current_user)
+    levels = [ALIAS_LEVELS[:everyone]]
+
+    if current_user.admin?
+      levels = [ALIAS_LEVELS[:everyone],
+                ALIAS_LEVELS[:only_admins],
+                ALIAS_LEVELS[:mods_and_admins],
+                ALIAS_LEVELS[:members_mods_and_admins]]
+    elsif current_user.moderator?
+      levels = [ALIAS_LEVELS[:everyone],
+                ALIAS_LEVELS[:mods_and_admins],
+                ALIAS_LEVELS[:members_mods_and_admins]]
+    end
+
+    Group.where("name ILIKE :term_like AND (" +
+        " alias_level in (:levels)" +
+        " OR (alias_level = #{ALIAS_LEVELS[:members_mods_and_admins]} AND id in (" +
+            "SELECT group_id FROM group_users WHERE user_id= :user_id)" +
+          ")" +
+        ")", term_like: "#{name.downcase}%", levels: levels, user_id: current_user.id)
+  end
+
   def self.lookup_group(name)
-    id = AUTO_GROUPS[name]
-    if id
-      Group.where(id: id).first
+    if id = AUTO_GROUPS[name]
+      Group.find_by(id: id)
     else
-      unless group = Group.where(name: name).first
-        raise ArgumentError, "unknown group" unless group
+      unless group = Group.find_by(name: name)
+        raise ArgumentError, "unknown group"
       end
       group
     end
+  end
+
+  def self.lookup_group_ids(opts)
+    if group_ids = opts[:group_ids]
+      group_ids = group_ids.split(",").map(&:to_i)
+      group_ids = Group.where(id: group_ids).pluck(:id)
+    end
+
+    group_ids ||= []
+
+    if group_names = opts[:group_names]
+      group_names = group_names.split(",")
+      if group_names.present?
+        group_ids += Group.where(name: group_names).pluck(:id)
+      end
+    end
+
+    group_ids
   end
 
 
@@ -118,7 +195,6 @@ class Group < ActiveRecord::Base
       refresh_automatic_group!(name)
     end
   end
-
 
   def self.builtin
     Enum.new(:moderators, :admins, :trust_level_1, :trust_level_2)
@@ -138,7 +214,7 @@ class Group < ActiveRecord::Base
     deletions = Set.new(deletions.map{|d| map[d]})
 
     @deletions = []
-    group_users.delete_if do |gu|
+    group_users.each do |gu|
       @deletions << gu if deletions.include?(gu.user_id)
     end
 
@@ -166,6 +242,7 @@ class Group < ActiveRecord::Base
     if @deletions
       @deletions.each do |gu|
         gu.destroy
+        User.where('id = ? AND primary_group_id = ?', gu.user_id, gu.group_id).update_all 'primary_group_id = NULL'
       end
     end
     @deletions = nil
@@ -177,15 +254,16 @@ end
 #
 # Table name: groups
 #
-#  id         :integer          not null, primary key
-#  name       :string(255)      not null
-#  created_at :datetime         not null
-#  updated_at :datetime         not null
-#  automatic  :boolean          default(FALSE), not null
-#  user_count :integer          default(0), not null
+#  id          :integer          not null, primary key
+#  name        :string(255)      not null
+#  created_at  :datetime
+#  updated_at  :datetime
+#  automatic   :boolean          default(FALSE), not null
+#  user_count  :integer          default(0), not null
+#  alias_level :integer          default(0)
+#  visible     :boolean          default(TRUE), not null
 #
 # Indexes
 #
 #  index_groups_on_name  (name) UNIQUE
 #
-

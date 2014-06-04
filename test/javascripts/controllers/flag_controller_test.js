@@ -13,10 +13,10 @@ var buildAdminUser = function(args) {
   }, args || {}));
 };
 
-module("Discourse.FlagController canDeleteSpammer");
+module("controller:flag canDeleteSpammer");
 
 test("canDeleteSpammer not staff", function(){
-  var flagController = controllerFor('flag', buildPost());
+  var flagController = controllerFor('flag', buildPost()); 
   this.stub(Discourse.User, 'currentProp').withArgs('staff').returns(false);
   flagController.set('selected', Discourse.PostActionType.create({name_key: 'spam'}));
   equal(flagController.get('canDeleteSpammer'), false, 'false if current user is not staff');

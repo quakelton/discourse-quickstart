@@ -5,7 +5,7 @@
 
   @class PreloadStore
 **/
-PreloadStore = {
+window.PreloadStore = {
   data: {},
 
   /**
@@ -31,16 +31,14 @@ PreloadStore = {
     @returns {Ember.Deferred} a promise that will eventually be the object we want.
   **/
   getAndRemove: function(key, finder) {
-    var preloadStore = this;
-
-    if (preloadStore.data[key]) {
-      var promise = Ember.RSVP.resolve(preloadStore.data[key]);
-      delete preloadStore.data[key];
+    if (this.data[key]) {
+      var promise = Em.RSVP.resolve(this.data[key]);
+      delete this.data[key];
       return promise;
     }
 
     if (finder) {
-      return Ember.Deferred.promise(function(promise) {
+      return Em.Deferred.promise(function(promise) {
         var result = finder();
 
         // If the finder returns a promise, we support that too
@@ -56,7 +54,7 @@ PreloadStore = {
       });
     }
 
-    return Ember.RSVP.resolve(null);
+    return Em.RSVP.resolve(null);
   },
 
   /**

@@ -17,8 +17,8 @@ describe PostAnalyzer do
 
     before { Oneboxer.stubs(:onebox) }
 
-    it 'fetches the onebox for any urls in the post' do
-      Oneboxer.expects(:onebox).with url
+    it 'fetches the cached onebox for any urls in the post' do
+      Oneboxer.expects(:cached_onebox).with url
       post_analyzer.cook(*args)
     end
 
@@ -184,7 +184,7 @@ describe PostAnalyzer do
     end
 
     it "ignores code" do
-      post_analyzer = PostAnalyzer.new("@Jake <code>@Finn</code>", default_topic_id)
+      post_analyzer = PostAnalyzer.new("@Jake `@Finn`", default_topic_id)
       post_analyzer.raw_mentions.should == ['jake']
     end
 

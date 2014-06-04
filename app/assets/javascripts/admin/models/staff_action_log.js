@@ -16,9 +16,14 @@ Discourse.StaffActionLog = Discourse.Model.extend({
   formattedDetails: function() {
     var formatted = "";
     formatted += this.format('email', 'email');
-    formatted += this.format('admin.logs.staff_actions.ip_address', 'ip_address');
-    formatted += this.format('admin.logs.staff_actions.new_value', 'new_value');
-    formatted += this.format('admin.logs.staff_actions.previous_value', 'previous_value');
+    formatted += this.format('admin.logs.ip_address', 'ip_address');
+    if (!this.get('useCustomModalForDetails')) {
+      formatted += this.format('admin.logs.staff_actions.new_value', 'new_value');
+      formatted += this.format('admin.logs.staff_actions.previous_value', 'previous_value');
+    }
+    if (!this.get('useModalForDetails')) {
+      if (this.get('details')) formatted += this.get('details') + '<br/>';
+    }
     return formatted;
   }.property('ip_address', 'email'),
 
@@ -28,13 +33,23 @@ Discourse.StaffActionLog = Discourse.Model.extend({
     } else {
       return '';
     }
-  }
+  },
+
+  useModalForDetails: function() {
+    return (this.get('details') && this.get('details').length > 100);
+  }.property('action_name'),
+
+  useCustomModalForDetails: function() {
+    return _.contains(['change_site_customization', 'delete_site_customization'], this.get('action_name'));
+  }.property('action_name')
 });
 
 Discourse.StaffActionLog.reopenClass({
   create: function(attrs) {
-    if (attrs.staff_user) {
-      attrs.staff_user = Discourse.AdminUser.create(attrs.staff_user);
+    attrs = attrs || {};
+
+    if (attrs.acting_user) {
+      attrs.acting_user = Discourse.AdminUser.create(attrs.acting_user);
     }
     if (attrs.target_user) {
       attrs.target_user = Discourse.AdminUser.create(attrs.target_user);

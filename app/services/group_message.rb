@@ -42,10 +42,16 @@ class GroupMessage
   end
 
   def message_params
-    @message_params ||= {
-      username: @opts[:user].username,
-      user_url: admin_user_path(@opts[:user].username)
-    }
+    @message_params ||= begin
+      h = {base_url: Discourse.base_url}.merge(@opts[:message_params]||{})
+      if @opts[:user]
+        h.merge!({
+          username: @opts[:user].username,
+          user_url: admin_user_path(@opts[:user].username)
+        })
+      end
+      h
+    end
   end
 
   def sent_recently?
@@ -58,9 +64,7 @@ class GroupMessage
     $redis.setex(sent_recently_key, @opts[:limit_once_per].try(:to_i) || 86_400, 1) unless @opts[:limit_once_per] == false
   end
 
-  private
-
-    def sent_recently_key
-      "grpmsg:#{@group_name}:#{@message_type}:#{@opts[:user] ? @opts[:user].username : ''}"
-    end
+  def sent_recently_key
+    "grpmsg:#{@group_name}:#{@message_type}:#{@opts[:user] ? @opts[:user].username : ''}"
+  end
 end

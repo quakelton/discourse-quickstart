@@ -9,30 +9,16 @@
 Discourse.TopicFromParamsRoute = Discourse.Route.extend({
 
   setupController: function(controller, params) {
-
     params = params || {};
     params.track_visit = true;
-
-    var topic = this.modelFor('topic');
-    var postStream = topic.get('postStream');
-
-    var queryParams = Discourse.URL.get('queryParams');
-    if (queryParams) {
-      // Set bestOf on the postStream if present
-      postStream.set('bestOf', Em.get(queryParams, 'filter') === 'best_of');
-
-      // Set any username filters on the postStream
-      var userFilters = Em.get(queryParams, 'username_filters[]');
-      if (userFilters) {
-        if (typeof userFilters === "string") { userFilters = [userFilters]; }
-        userFilters.forEach(function (username) {
-          postStream.get('userFilters').add(username);
-        });
-      }
-    }
+    var topic = this.modelFor('topic'),
+        postStream = topic.get('postStream');
 
     var topicController = this.controllerFor('topic'),
         composerController = this.controllerFor('composer');
+
+    // I sincerely hope no topic gets this many posts
+    if (params.nearPost === "last") { params.nearPost = 999999999; }
 
     postStream.refresh(params).then(function () {
       // The post we requested might not exist. Let's find the closest post
@@ -41,8 +27,11 @@ Discourse.TopicFromParamsRoute = Discourse.Route.extend({
       topicController.setProperties({
         currentPost: closest,
         progressPosition: closest,
-        enteredAt: new Date().getTime()
+        enteredAt: new Date().getTime().toString(),
+        highlightOnInsert: closest
       });
+
+      Discourse.TopicView.jumpToPost(closest);
 
       if (topic.present('draft')) {
         composerController.open({
@@ -58,4 +47,5 @@ Discourse.TopicFromParamsRoute = Discourse.Route.extend({
 
 });
 
+Discourse.TopicFromParamsNearRoute = Discourse.TopicFromParamsRoute;
 

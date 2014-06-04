@@ -29,6 +29,14 @@ describe PostAction do
       action.related_post_id.should == posts[0].id.to_i
       posts[0].subtype.should == TopicSubtype.notify_moderators
 
+      # Moderators should be invited to the private topic, otherwise they're not permitted to see it
+      topic_user_ids = posts[0].topic.topic_users.map {|x| x.user_id}
+      topic_user_ids.should include(codinghorror.id)
+      topic_user_ids.should_not include(mod.id)
+
+      # invite the moderator
+      posts[0].topic.allowed_users << mod
+
       # reply to PM should clear flag
       p = PostCreator.new(mod, topic_id: posts[0].topic_id, raw: "This is my test reply to the user, it should clear flags")
       p.create
@@ -41,10 +49,9 @@ describe PostAction do
     describe 'notify_moderators' do
       before do
         PostAction.stubs(:create)
-        PostAction.expects(:target_moderators).returns("moderators")
       end
 
-      it "sends an email to all moderators if selected" do
+      it "creates a pm if selected" do
         post = build(:post, id: 1000)
         PostCreator.any_instance.expects(:create).returns(post)
         PostAction.act(build(:user), build(:post), PostActionType.types[:notify_moderators], message: "this is my special message");
@@ -96,7 +103,7 @@ describe PostAction do
       post.reload
       post.hidden.should be_false
 
-      PostAction.hide_post!(post)
+      PostAction.hide_post!(post, PostActionType.types[:off_topic])
       post.reload
       post.hidden.should be_true
     end
@@ -214,7 +221,7 @@ describe PostAction do
       u1 = Fabricate(:evil_trout)
       PostAction.act(u1, post, PostActionType.types[:spam])
       PostAction.remove_act(u1, post, PostActionType.types[:spam])
-      lambda { PostAction.act(u1, post, PostActionType.types[:off_topic]) }.should_not raise_error(PostAction::AlreadyActed)
+      lambda { PostAction.act(u1, post, PostActionType.types[:off_topic]) }.should_not raise_error()
     end
 
     it 'should update counts when you clear flags' do
@@ -270,6 +277,21 @@ describe PostAction do
       post.hidden.should be_true
       post.hidden_reason_id.should == Post.hidden_reasons[:flag_threshold_reached_again]
     end
+
+    it "can flag the topic instead of a post" do
+      post1 = create_post
+      post2 = create_post(topic: post1.topic)
+      post_action = PostAction.act(Fabricate(:user), post1, PostActionType.types[:spam], {flag_topic: true})
+      post_action.targets_topic.should == true
+    end
+
+    it "will flag the first post if you flag a topic but there is only one post in the topic" do
+      post = create_post
+      post_action = PostAction.act(Fabricate(:user), post, PostActionType.types[:spam], {flag_topic: true})
+      post_action.targets_topic.should == false
+      post_action.post_id.should == post.id
+    end
+
   end
 
   it "prevents user to act twice at the same time" do

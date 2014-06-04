@@ -35,13 +35,38 @@ describe InvitesController do
 
     end
 
+  end
+
+  context '.create' do
+    it 'requires you to be logged in' do
+      lambda {
+        post :create, email: 'jake@adventuretime.ooo'
+      }.should raise_error(Discourse::NotLoggedIn)
+    end
+
+    context 'while logged in' do
+      let(:email) { 'jake@adventuretime.ooo' }
+
+      it "fails if you can't invite to the forum" do
+        log_in
+        post :create, email: email
+        response.should_not be_success
+      end
+
+      it "allows admins to invite to groups" do
+        group = Fabricate(:group)
+        log_in(:admin)
+        post :create, email: email, group_names: group.name
+        response.should be_success
+        Invite.find_by(email: email).invited_groups.count.should == 1
+      end
+    end
 
   end
 
   context '.show' do
 
     context 'with an invalid invite id' do
-
       before do
         get :show, id: "doesn't exist"
       end
@@ -53,7 +78,6 @@ describe InvitesController do
       it "should not change the session" do
         session[:current_user_id].should be_blank
       end
-
     end
 
     context 'with a deleted invite' do
@@ -71,9 +95,7 @@ describe InvitesController do
       it "should not change the session" do
         session[:current_user_id].should be_blank
       end
-
     end
-
 
     context 'with a valid invite id' do
       let(:topic) { Fabricate(:topic) }

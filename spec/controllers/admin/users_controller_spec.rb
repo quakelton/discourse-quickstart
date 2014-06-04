@@ -62,6 +62,26 @@ describe Admin::UsersController do
 
     end
 
+    context '.generate_api_key' do
+      let(:evil_trout) { Fabricate(:evil_trout) }
+
+      it 'calls generate_api_key' do
+        User.any_instance.expects(:generate_api_key).with(@user)
+        xhr :post, :generate_api_key, user_id: evil_trout.id
+      end
+    end
+
+    context '.revoke_api_key' do
+
+      let(:evil_trout) { Fabricate(:evil_trout) }
+
+      it 'calls revoke_api_key' do
+        User.any_instance.expects(:revoke_api_key)
+        xhr :delete, :revoke_api_key, user_id: evil_trout.id
+      end
+
+    end
+
     context '.approve' do
 
       let(:evil_trout) { Fabricate(:evil_trout) }
@@ -120,6 +140,29 @@ describe Admin::UsersController do
       end
     end
 
+    context '.primary_group' do
+      before do
+        @another_user = Fabricate(:coding_horror)
+      end
+
+      it "raises an error when the user doesn't have permission" do
+        Guardian.any_instance.expects(:can_change_primary_group?).with(@another_user).returns(false)
+        xhr :put, :primary_group, user_id: @another_user.id
+        response.should be_forbidden
+      end
+
+      it "returns a 404 if the user doesn't exist" do
+        xhr :put, :primary_group, user_id: 123123
+        response.should be_forbidden
+      end
+
+      it "changes the user's primary group" do
+        xhr :put, :primary_group, user_id: @another_user.id, primary_group_id: 2
+        @another_user.reload
+        @another_user.primary_group_id.should == 2
+      end
+    end
+
     context '.trust_level' do
       before do
         @another_user = Fabricate(:coding_horror)
@@ -145,10 +188,11 @@ describe Admin::UsersController do
 
       it "raises an error when demoting a user below their current trust level" do
         StaffActionLogger.any_instance.expects(:log_trust_level_change).never
-        @another_user.topics_entered = SiteSetting.basic_requires_topics_entered + 1
-        @another_user.posts_read_count = SiteSetting.basic_requires_read_posts + 1
-        @another_user.time_read = SiteSetting.basic_requires_time_spent_mins * 60
-        @another_user.save!
+        stat = @another_user.user_stat
+        stat.topics_entered = SiteSetting.basic_requires_topics_entered + 1
+        stat.posts_read_count = SiteSetting.basic_requires_read_posts + 1
+        stat.time_read = SiteSetting.basic_requires_time_spent_mins * 60
+        stat.save!
         @another_user.update_attributes(trust_level: TrustLevel.levels[:basic])
         xhr :put, :trust_level, user_id: @another_user.id, level: TrustLevel.levels[:newuser]
         response.should be_forbidden

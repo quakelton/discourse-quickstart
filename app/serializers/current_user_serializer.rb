@@ -15,10 +15,12 @@ class CurrentUserSerializer < BasicUserSerializer
              :dynamic_favicon,
              :trust_level,
              :can_edit,
-             :use_uploaded_avatar,
-             :has_uploaded_avatar,
-             :gravatar_template,
-             :uploaded_avatar_template
+             :can_invite_to_forum,
+             :no_password,
+             :can_delete_account,
+             :should_be_redirected_to_top,
+             :redirected_to_top_reason,
+             :disable_jump_reply
 
   def include_site_flagged_posts_count?
     object.staff?
@@ -29,7 +31,7 @@ class CurrentUserSerializer < BasicUserSerializer
   end
 
   def reply_count
-    object.topic_reply_count
+    object.user_stat.topic_reply_count
   end
 
   def site_flagged_posts_count
@@ -40,8 +42,32 @@ class CurrentUserSerializer < BasicUserSerializer
     true
   end
 
-  def gravatar_template
-    User.gravatar_template(object.email)
+  def can_invite_to_forum
+    true
+  end
+
+  def include_can_invite_to_forum?
+    scope.can_invite_to_forum?
+  end
+
+  def no_password
+    true
+  end
+
+  def include_no_password?
+    !object.has_password?
+  end
+
+  def include_can_delete_account?
+    scope.can_delete_user?(object)
+  end
+
+  def can_delete_account
+    true
+  end
+
+  def include_redirected_to_top_reason?
+    object.redirected_to_top_reason.present?
   end
 
 end

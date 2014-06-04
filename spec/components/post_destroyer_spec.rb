@@ -94,28 +94,28 @@ describe PostDestroyer do
 
   describe 'basic destroying' do
 
-    context "as the creator of the post" do
-      before do
-        @orig = post.cooked
-        PostDestroyer.new(post.user, post).destroy
-        post.reload
-      end
+    it "as the creator of the post, doesn't delete the post" do
+      SiteSetting.stubs(:unique_posts_mins).returns(5)
+      SiteSetting.stubs(:delete_removed_posts_after).returns(24)
 
-      it "doesn't delete the post" do
-        SiteSetting.stubs(:delete_removed_posts_after).returns(24)
-        post.deleted_at.should be_blank
-        post.deleted_by.should be_blank
-        post.user_deleted.should be_true
-        post.raw.should == I18n.t('js.post.deleted_by_author', {count: 24})
-        post.version.should == 2
+      post2 = create_post # Create it here instead of with "let" so unique_posts_mins can do its thing
 
-        # lets try to recover
-        PostDestroyer.new(post.user, post).recover
-        post.reload
-        post.version.should == 3
-        post.user_deleted.should be_false
-        post.cooked.should == @orig
-      end
+      @orig = post2.cooked
+      PostDestroyer.new(post2.user, post2).destroy
+      post2.reload
+
+      post2.deleted_at.should be_blank
+      post2.deleted_by.should be_blank
+      post2.user_deleted.should be_true
+      post2.raw.should == I18n.t('js.post.deleted_by_author', {count: 24})
+      post2.version.should == 2
+
+      # lets try to recover
+      PostDestroyer.new(post2.user, post2).recover
+      post2.reload
+      post2.version.should == 3
+      post2.user_deleted.should be_false
+      post2.cooked.should == @orig
     end
 
     context "as a moderator" do
@@ -164,7 +164,7 @@ describe PostDestroyer do
 
     context 'topic_user' do
 
-      let(:topic_user) { second_user.topic_users.where(topic_id: topic.id).first }
+      let(:topic_user) { second_user.topic_users.find_by(topic_id: topic.id) }
 
       it 'clears the posted flag for the second user' do
         topic_user.posted?.should be_false
@@ -253,13 +253,12 @@ describe PostDestroyer do
   end
 
   context '@mentions' do
-    let!(:evil_trout) { Fabricate(:evil_trout) }
-    let!(:mention_post) { Fabricate(:post, raw: 'Hello @eviltrout')}
-
     it 'removes notifications when deleted' do
+      user = Fabricate(:evil_trout)
+      post = create_post(raw: 'Hello @eviltrout')
       lambda {
-        PostDestroyer.new(Fabricate(:moderator), mention_post).destroy
-      }.should change(evil_trout.notifications, :count).by(-1)
+        PostDestroyer.new(Fabricate(:moderator), post).destroy
+      }.should change(user.notifications, :count).by(-1)
     end
   end
 
@@ -276,8 +275,8 @@ describe PostDestroyer do
     it "should delete the post actions" do
       flag = PostAction.act(codinghorror, second_post, PostActionType.types[:off_topic])
       PostDestroyer.new(moderator, second_post).destroy
-      expect(PostAction.where(id: flag.id).first).to be_nil
-      expect(PostAction.where(id: bookmark.id).first).to be_nil
+      expect(PostAction.find_by(id: flag.id)).to be_nil
+      expect(PostAction.find_by(id: bookmark.id)).to be_nil
     end
 
     it 'should update flag counts on the post' do

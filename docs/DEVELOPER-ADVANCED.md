@@ -1,30 +1,32 @@
 # Discourse Advanced Developer Install Guide
 
-This guide is aimed at advanced Rails developers who have installed their own Rails apps before. If you are new
-to rails, you are likely much better off with our **[Discourse Vagrant Developer Guide](VAGRANT.md)**.
+This guide is aimed at advanced Rails developers who have installed their own Rails apps before. If you are new to Rails, you are likely much better off with our **[Discourse Vagrant Developer Guide](VAGRANT.md)**.
+
+Note: If you are developing on a Mac, you will probably want to look at [these instructions](DEVELOPMENT-OSX-NATIVE.md) as well.
 
 ## First Steps
 
-1. Install and configure PostgreSQL 9.1+. Make sure that the server's messages language is English; this is [required](https://github.com/rails/rails/blob/3006c59bc7a50c925f6b744447f1d94533a64241/activerecord/lib/active_record/connection_adapters/postgresql_adapter.rb#L1140) by the ActiveRecord Postgres adapter.
-2. Install and configure Redis 2+
-3. Install libxml2, g++, and make.
-4. Install Ruby 1.9.3 and Bundler.
-5. Clone the project and bundle.
-6. Create development and test databases in postgres.
-7. Copy `config/database.yml.development-sample` and `config/redis.yml.sample` to `config/database.yml` and `config/redis.yml` and input the correct values to point to your postgres and redis instances.
-8. Install the seed data to set up an admin account and meta topic: `psql DATABASE_NAME < pg_dumps/production-image.sql`
+1. Install and configure PostgreSQL 9.1+. 
+  1. Run `postgres -V` to see if you already have it.
+  1. Make sure that the server's messages language is English; this is [required](https://github.com/rails/rails/blob/3006c59bc7a50c925f6b744447f1d94533a64241/activerecord/lib/active_record/connection_adapters/postgresql_adapter.rb#L1140) by the ActiveRecord Postgres adapter.
+2. Install and configure Redis 2+.
+  1. Run `redis-server -v` to see if you already have it.
+3. Install ImageMagick
+4. Install libxml2, g++, and make.
+5. Install Ruby 1.9.3 and Bundler.
+6. Clone the project and bundle.
+7. Copy `config/database.yml.development-sample` to `config/database.yml`. Copy `config/redis.yml.sample` to `config/redis.yml`. Edit the files to point to your postgres and redis instances.
+8. Create the "vagrant" user and the development and test databases in postgres. See the postgres section in "Building your own Vagrant VM", below.
 
 
 ## Before you start Rails
 
 1. `bundle install`
-2. `rake db:migrate`
-3. `rake db:test:prepare`
-4. `rake db:seed_fu`
-5. Try running the specs: `bundle exec rake autospec`
-6. `bundle exec rails server`
+2. `bundle exec rake db:create db:migrate db:test:prepare db:seed_fu`
+4. Try running the specs: `bundle exec rake autospec`
+5. `bundle exec rails server`
 
-You should now be able to connect to rails on http://localhost:3000 - try it out! The seed data includes a pinned topic that explains how to get an admin account, so start there! Happy hacking!
+You should now be able to connect to rails on [http://localhost:3000](http://localhost:3000) - try it out! The seed data includes a pinned topic that explains how to get an admin account, so start there! Happy hacking!
 
 
 # Building your own Vagrant VM
@@ -80,8 +82,8 @@ Vagrant version 1.1.2. With this Vagrantfile:
     su - vagrant -c "rvm install 2.0.0-turbo"
     su - vagrant -c "rvm use 2.0.0-turbo --default"
 
-    echo "gem: --no-rdoc --no-ri" >> /etc/gemrc
-    su - vagrant -c "echo 'gem: --no-rdoc --no-ri' >> ~/.gemrc"
+    echo "gem: --no-document" >> /etc/gemrc
+    su - vagrant -c "echo 'gem: --no-document' >> ~/.gemrc"
 
 ## Postgres 9.1
 
@@ -103,12 +105,6 @@ Edit /etc/postgresql/9.1/main/pg_hba.conf to have this:
     host all all 127.0.0.1/32 trust
     host all all ::1/128 trust
     host all all 0.0.0.0/0 trust # wide-open
-
-Load the seed data (as vagrant user):
-
-    psql -d discourse_development < pg_dumps/development-image.sql
-
-(You may wish to try the `production-image.sql` file for a good seed for a production database.)
 
 ## Redis
 
