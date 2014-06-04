@@ -52,6 +52,14 @@ GIT
       tilt (~> 1.1, != 1.3.0)
 
 GIT
+  remote: https://github.com/SamSaffron/vestal_versions
+  revision: 671833227aa47f16e9c907fe7b2870be3743ac00
+  specs:
+    vestal_versions (1.2.3)
+      activerecord (>= 3.0)
+      activesupport (>= 3.0)
+
+GIT
   remote: https://github.com/callahad/omniauth-browserid.git
   revision: af62d667626c1622de6fe13b60849c3640765ab1
   branch: observer_api
@@ -60,14 +68,6 @@ GIT
       faraday
       multi_json
       omniauth (~> 1.0)
-
-GIT
-  remote: https://github.com/SamSaffron/vestal_versions
-  revision: 671833227aa47f16e9c907fe7b2870be3743ac00
-  specs:
-    vestal_versions (1.2.3)
-      activerecord (>= 3.0)
-      activesupport (>= 3.0)
 
 GIT
   remote: https://github.com/lawrencepit/email_reply_parser.git
