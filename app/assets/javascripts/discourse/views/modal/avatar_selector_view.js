@@ -12,10 +12,7 @@ Discourse.AvatarSelectorView = Discourse.ModalBodyView.extend({
   title: I18n.t('user.change_avatar.title'),
   uploading: false,
   uploadProgress: 0,
-  useGravatar: Em.computed.not("controller.use_uploaded_avatar"),
-  canSaveAvatarSelection: Em.computed.or("useGravatar", "controller.has_uploaded_avatar"),
-  saveDisabled: Em.computed.not("canSaveAvatarSelection"),
-  imageIsNotASquare : false,
+  uploadedAvatarDisabled: Em.computed.not("controller.has_uploaded_avatar"),
 
   didInsertElement: function() {
     var view = this;
@@ -41,10 +38,7 @@ Discourse.AvatarSelectorView = Discourse.ModalBodyView.extend({
 
     // when a file has been selected
     $upload.on("fileuploadadd", function (e, data) {
-      view.setProperties({
-        uploading: true,
-        imageIsNotASquare: false
-      });
+      view.set("uploading", true);
     });
 
     // when there is a progression for the upload
@@ -55,19 +49,11 @@ Discourse.AvatarSelectorView = Discourse.ModalBodyView.extend({
 
     // when the upload is successful
     $upload.on("fileuploaddone", function (e, data) {
-      // indicates the users is using an uploaded avatar
+      // set some properties
       view.get("controller").setProperties({
         has_uploaded_avatar: true,
-        use_uploaded_avatar: true
-      });
-      // display a warning whenever the image is not a square
-      view.set("imageIsNotASquare", data.result.width !== data.result.height);
-      // in order to be as much responsive as possible, we're cheating a bit here
-      // indeed, the server gives us back the url to the file we've just uploaded
-      // often, this file is not a square, so we need to crop it properly
-      // this will also capture the first frame of animated avatars when they're not allowed
-      Discourse.Utilities.cropAvatar(data.result.url, data.files[0].type).then(function(avatarTemplate) {
-        view.get("controller").set("uploaded_avatar_template", avatarTemplate);
+        use_uploaded_avatar: true,
+        uploaded_avatar_template: data.result.url
       });
     });
 

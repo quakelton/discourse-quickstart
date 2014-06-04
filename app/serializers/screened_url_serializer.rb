@@ -4,8 +4,7 @@ class ScreenedUrlSerializer < ApplicationSerializer
              :action,
              :match_count,
              :last_match_at,
-             :created_at,
-             :ip_address
+             :created_at
 
   def action
     ScreenedUrl.actions.key(object.action_type).to_s

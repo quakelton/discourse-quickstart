@@ -55,7 +55,6 @@ class User < ActiveRecord::Base
   before_save :update_username_lower
   before_save :ensure_password_is_hashed
   after_initialize :add_trust_level
-  after_initialize :set_default_email_digest
 
   after_save :update_tracked_topics
 
@@ -69,7 +68,6 @@ class User < ActiveRecord::Base
 
   scope :blocked, -> { where(blocked: true) } # no index
   scope :banned, -> { where('banned_till IS NOT NULL AND banned_till > ?', Time.zone.now) } # no index
-  scope :not_banned, -> { where('banned_till IS NULL') }
 
   module NewTopicDuration
     ALWAYS = -1
@@ -96,6 +94,23 @@ class User < ActiveRecord::Base
     user
   end
 
+  def self.create_for_email(email, opts={})
+    username = UserNameSuggester.suggest(email)
+
+    discourse_hub_nickname_operation do
+      match, available, suggestion = DiscourseHub.nickname_match?(username, email)
+      username = suggestion unless match || available
+    end
+
+    user = User.new(email: email, username: username, name: username)
+    user.trust_level = opts[:trust_level] if opts[:trust_level].present?
+    user.save!
+
+    discourse_hub_nickname_operation { DiscourseHub.register_nickname(username, email) }
+
+    user
+  end
+
   def self.suggest_name(email)
     return "" unless email
     name = email.split(/[@\+]/)[0]
@@ -112,18 +127,23 @@ class User < ActiveRecord::Base
   end
 
   def self.find_by_username_or_email(username_or_email)
-    conditions = if username_or_email.include?('@')
-      { email: Email.downcase(username_or_email) }
-    else
-      { username_lower: username_or_email.downcase }
-    end
+    lower_user = username_or_email.downcase
+    lower_email = Email.downcase(username_or_email)
 
-    users = User.where(conditions).to_a
+    users =
+      if username_or_email.include?('@')
+        User.where(email: lower_email)
+      else
+        User.where(username_lower: lower_user)
+      end
+        .to_a
 
-    if users.size > 1
+    if users.count > 1
       raise Discourse::TooManyMatches
+    elsif users.count == 1
+      users[0]
     else
-      users.first
+      nil
     end
   end
 
@@ -137,7 +157,7 @@ class User < ActiveRecord::Base
     self.username = new_username
 
     if current_username.downcase != new_username.downcase && valid?
-      DiscourseHub.nickname_operation { DiscourseHub.change_nickname(current_username, new_username) }
+      User.discourse_hub_nickname_operation { DiscourseHub.change_nickname(current_username, new_username) }
     end
 
     save
@@ -304,36 +324,24 @@ class User < ActiveRecord::Base
 
   # Updates the denormalized view counts for all users
   def self.update_view_counts
-
-    # NOTE: we only update the counts for users we have seen in the last hour
-    #  this avoids a very expensive query that may run on the entire user base
-    #  we also ensure we only touch the table if data changes
-
     # Update denormalized topics_entered
-    exec_sql "UPDATE users SET topics_entered = X.c
+    exec_sql "UPDATE users SET topics_entered = x.c
              FROM
             (SELECT v.user_id,
                     COUNT(DISTINCT parent_id) AS c
              FROM views AS v
              WHERE parent_type = 'Topic'
              GROUP BY v.user_id) AS X
-            WHERE
-                    X.user_id = users.id AND
-                    X.c <> topics_entered AND
-                    users.last_seen_at > :seen_at
-    ", seen_at: 1.hour.ago
+            WHERE x.user_id = users.id"
 
     # Update denormalzied posts_read_count
-    exec_sql "UPDATE users SET posts_read_count = X.c
+    exec_sql "UPDATE users SET posts_read_count = x.c
               FROM
               (SELECT pt.user_id,
                       COUNT(*) AS c
                FROM post_timings AS pt
                GROUP BY pt.user_id) AS X
-               WHERE X.user_id = users.id AND
-                     X.c <> posts_read_count AND
-                     users.last_seen_at > :seen_at
-    ", seen_at: 1.hour.ago
+               WHERE x.user_id = users.id"
   end
 
   # The following count methods are somewhat slow - definitely don't use them in a loop.
@@ -487,7 +495,7 @@ class User < ActiveRecord::Base
   end
 
   def secure_category_ids
-    cats = self.staff? ? Category.select(:id).where(read_restricted: true) : secure_categories.select('categories.id').references(:categories)
+    cats = self.staff? ? Category.select(:id).where(read_restricted: true) : secure_categories.select('categories.id')
     cats.map { |c| c.id }.sort
   end
 
@@ -582,19 +590,19 @@ class User < ActiveRecord::Base
     )
   end
 
-  def set_default_email_digest
-    if has_attribute?(:email_digests) && self.email_digests.nil?
-      if SiteSetting.default_digest_email_frequency.blank?
-        self.email_digests = false
-      else
-        self.email_digests = true
-        self.digest_after_days ||= SiteSetting.default_digest_email_frequency.to_i if has_attribute?(:digest_after_days)
+  private
+
+  def self.discourse_hub_nickname_operation
+    if SiteSetting.call_discourse_hub?
+      begin
+        yield
+      rescue DiscourseHub::NicknameUnavailable
+        false
+      rescue => e
+        Rails.logger.error e.message + "\n" + e.backtrace.join("\n")
       end
     end
   end
-
-  private
-
 end
 
 # == Schema Information
@@ -619,7 +627,7 @@ end
 #  website                       :string(255)
 #  admin                         :boolean          default(FALSE), not null
 #  last_emailed_at               :datetime
-#  email_digests                 :boolean          not null
+#  email_digests                 :boolean          default(TRUE), not null
 #  trust_level                   :integer          not null
 #  bio_cooked                    :text
 #  email_private_messages        :boolean          default(TRUE)
@@ -629,7 +637,7 @@ end
 #  approved_at                   :datetime
 #  topics_entered                :integer          default(0), not null
 #  posts_read_count              :integer          default(0), not null
-#  digest_after_days             :integer
+#  digest_after_days             :integer          default(7), not null
 #  previous_visit_at             :datetime
 #  banned_at                     :datetime
 #  banned_till                   :datetime
@@ -662,4 +670,3 @@ end
 #  index_users_on_username        (username) UNIQUE
 #  index_users_on_username_lower  (username_lower) UNIQUE
 #
-

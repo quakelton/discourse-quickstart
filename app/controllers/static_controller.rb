@@ -1,7 +1,6 @@
 class StaticController < ApplicationController
 
   skip_before_filter :check_xhr, :redirect_to_login_if_required
-  skip_before_filter :verify_authenticity_token, only: [:enter]
 
   def show
 

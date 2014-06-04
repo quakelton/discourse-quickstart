@@ -58,5 +58,4 @@ Discourse.TopicFromParamsRoute = Discourse.Route.extend({
 
 });
 
-Discourse.TopicFromParamsNearRoute = Discourse.TopicFromParamsRoute;
 

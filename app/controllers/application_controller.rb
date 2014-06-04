@@ -22,7 +22,7 @@ class ApplicationController < ActionController::Base
     unless is_api?
       super
       clear_current_user
-      render text: "['BAD CSRF']", status: 403
+      raise Discourse::CSRF
     end
   end
 

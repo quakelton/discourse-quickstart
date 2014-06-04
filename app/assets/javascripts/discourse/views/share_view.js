@@ -34,12 +34,12 @@ Discourse.ShareView = Discourse.View.extend({
   }.observes('controller.link'),
 
   didInsertElement: function() {
+
     var shareView = this;
     $('html').on('mousedown.outside-share-link', function(e) {
       // Use mousedown instead of click so this event is handled before routing occurs when a
       // link is clicked (which is a click event) while the share dialog is showing.
       if (shareView.$().has(e.target).length !== 0) { return; }
-
       shareView.get('controller').close();
       return true;
     });
@@ -53,17 +53,7 @@ Discourse.ShareView = Discourse.View.extend({
       if (url.indexOf("/") === 0) {
         url = window.location.protocol + "//" + window.location.host + url;
       }
-
-      var x = e.pageX - 150;
-      if (x < 25) {
-        x = 25;
-      }
-
-      $('#share-link').css({
-        left: "" + x + "px",
-        top: "" + (e.pageY - 100) + "px"
-      });
-      shareView.set('controller.link', url);
+      shareView.get('controller').shareLink(e, url);
       return false;
     });
 

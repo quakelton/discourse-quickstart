@@ -178,9 +178,8 @@
     .archetype-option {
       margin-bottom: 20px;
     }
-    .warning {
-      color: lighten($red, 10%) !important;
-    }
+
+
   }
   .password-confirmation {
     display: none;
@@ -251,13 +250,6 @@
         }
       }
     }
-  }
-}
-
-.tabbed-modal {
-  .modal-body {
-    position: relative;
-    height: 350px;
   }
 }
 

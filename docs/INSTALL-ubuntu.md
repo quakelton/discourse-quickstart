@@ -48,7 +48,7 @@ If you have a mail server responsible for handling the egress of email from your
 Install necessary packages:
 
     # Run these commands as your normal login (e.g. "michael")
-    sudo apt-get -y install build-essential libssl-dev libyaml-dev git libtool libxslt-dev libxml2-dev libpq-dev gawk curl pngcrush imagemagick python-software-properties
+    sudo apt-get -y install build-essential libssl-dev libyaml-dev git libtool libxslt-dev libxml2-dev libpq-dev gawk curl pngcrush python-software-properties
 
     # If you're on Ubuntu >= 12.10, change:
     # python-software-properties to software-properties-common
@@ -187,6 +187,13 @@ Edit /var/www/discourse/config/discourse.pill
 
 - change application name from 'discourse' if necessary
 - Ensure appropriate Bluepill.application line is uncommented
+- search for "host to run on" and change to current hostname
+
+Edit /var/www/discourse/config/initializers/secret_token.rb
+
+- uncomment secret_token line
+- replace SET_SECRET_HERE with the output from 'RAILS_ENV=production rake secret' command run from the discourse directory (`/var/www/discourse`)
+- delete the lines below as per instructions in the file
 
 Edit /var/www/discourse/config/environments/production.rb
 - browse througn all the settings

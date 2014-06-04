@@ -191,11 +191,10 @@ describe TopicView do
 
     context '#recent_posts' do
       before do
-        24.times do |t| # our let()s have already created 3
-          Fabricate(:post, topic: topic, user: first_poster, created_at: t.seconds.from_now)
+        24.times do # our let()s have already created 3
+          Fabricate(:post, topic: topic, user: first_poster)
         end
       end
-
       it 'returns at most 25 recent posts ordered newest first' do
         recent_posts = topic_view.recent_posts
 

@@ -221,7 +221,7 @@ Discourse.Composer = Discourse.Model.extend({
   **/
   replyLength: function() {
     var reply = this.get('reply') || "";
-    while (Discourse.Quote.REGEXP.test(reply)) { reply = reply.replace(Discourse.Quote.REGEXP, ""); }
+    while (Discourse.BBCode.QUOTE_REGEXP.test(reply)) { reply = reply.replace(Discourse.BBCode.QUOTE_REGEXP, ""); }
     return reply.replace(/\s+/img, " ").trim().length;
   }.property('reply'),
 
@@ -279,7 +279,7 @@ Discourse.Composer = Discourse.Model.extend({
       this.set('loading', true);
       var composer = this;
       return Discourse.Post.load(postId).then(function(post) {
-        composer.appendText(Discourse.Quote.build(post, post.get('raw')));
+        composer.appendText(Discourse.BBCode.buildQuoteBBCode(post, post.get('raw')));
         composer.set('loading', false);
       });
     }
@@ -333,10 +333,6 @@ Discourse.Composer = Discourse.Model.extend({
       metaData: opts.metaData ? Em.Object.create(opts.metaData) : null,
       reply: opts.reply || this.get("reply") || ""
     });
-
-    if (!this.get('categoryName') && !Discourse.SiteSettings.allow_uncategorized_topics && Discourse.Category.list().length > 0) {
-      this.set('categoryName', Discourse.Category.list()[0].get('name'));
-    }
 
     if (opts.postId) {
       this.set('loading', true);
@@ -442,7 +438,6 @@ Discourse.Composer = Discourse.Model.extend({
         postStream = this.get('topic.postStream'),
         addedToStream = false;
 
-
     // Build the post object
     var createdPost = Discourse.Post.create({
       raw: this.get('reply'),
@@ -483,8 +478,6 @@ Discourse.Composer = Discourse.Model.extend({
 
     var composer = this;
     return Ember.Deferred.promise(function(promise) {
-
-      composer.set('composeState', SAVING);
       createdPost.save(function(result) {
         var addedPost = false,
             saving = true;
@@ -518,16 +511,8 @@ Discourse.Composer = Discourse.Model.extend({
         if (postStream) {
           postStream.undoPost(createdPost);
         }
+        promise.reject($.parseJSON(error.responseText).errors[0]);
         composer.set('composeState', OPEN);
-        // TODO extract error handling code
-        var parsedError;
-        try {
-          parsedError = $.parseJSON(error.responseText).errors[0];
-        }
-        catch(ex) {
-          parsedError = "Unknown error saving post, try again. Error: " + error.status + " " + error.statusText;
-        }
-        promise.reject(parsedError);
       });
     });
   },

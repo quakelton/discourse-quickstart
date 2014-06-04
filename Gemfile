@@ -52,8 +52,9 @@ else
   gem 'active_attr'
 end
 
+gem 'redis'
 gem 'hiredis'
-gem 'redis', :require => ["redis", "redis/connection/hiredis"]
+gem 'em-redis'
 
 gem 'active_model_serializers'
 
@@ -64,7 +65,7 @@ gem 'ember-source', '1.0.0.rc6.2'
 gem 'handlebars-source', '1.0.12'
 gem 'barber'
 
-gem 'vestal_versions', git: 'https://github.com/SamSaffron/vestal_versions'
+gem 'vestal_versions', git: 'https://github.com/zhangyuan/vestal_versions'
 
 gem 'message_bus', git: 'https://github.com/SamSaffron/message_bus'
 gem 'rails_multisite', path: 'vendor/gems/rails_multisite'
@@ -187,10 +188,7 @@ gem 'lru_redux'
 # IMPORTANT: mini profiler monkey patches, so it better be required last
 #  If you want to amend mini profiler to do the monkey patches in the railstie
 #  we are open to it. by deferring require to the initializer we can configure disourse installs without it
-
-# gem 'rack-mini-profiler', '0.1.30', require: false
-gem 'flamegraph', require: false
-gem 'rack-mini-profiler', require: false
+gem 'rack-mini-profiler', '0.1.29', require: false  # require: false #, git: 'git://github.com/SamSaffron/MiniProfiler'
 
 # used for caching, optional
 # redis-rack-cache is missing a sane expiry policy, it hogs redis
@@ -199,7 +197,6 @@ gem 'redis-rack-cache', git: 'https://github.com/SamSaffron/redis-rack-cache.git
 gem 'rack-cache', require: false
 gem 'rack-cors', require: false
 gem 'unicorn', require: false
-gem 'puma', require: false
 
 # perftools only works on 1.9 atm
 group :profile do

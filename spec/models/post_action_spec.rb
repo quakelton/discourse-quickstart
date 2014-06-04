@@ -214,7 +214,7 @@ describe PostAction do
       u1 = Fabricate(:evil_trout)
       PostAction.act(u1, post, PostActionType.types[:spam])
       PostAction.remove_act(u1, post, PostActionType.types[:spam])
-      lambda { PostAction.act(u1, post, PostActionType.types[:off_topic]) }.should_not raise_error()
+      lambda { PostAction.act(u1, post, PostActionType.types[:off_topic]) }.should_not raise_error(PostAction::AlreadyActed)
     end
 
     it 'should update counts when you clear flags' do

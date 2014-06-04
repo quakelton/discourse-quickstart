@@ -28,13 +28,12 @@ module Oneboxer
 
         @template = 'user'
       when 'topics'
-
-        linked = "<a href='#{@url}'>#{@url}</a>"
         if route[:post_number].present? && route[:post_number].to_i > 1
           # Post Link
           post = Post.where(topic_id: route[:topic_id], post_number: route[:post_number].to_i).first
-          return linked unless post
-          return linked unless Guardian.new.can_see?(post)
+          return nil unless post
+
+          return @url unless Guardian.new.can_see?(post)
 
           topic = post.topic
           slug = Slug.for(topic.title)
@@ -51,8 +50,9 @@ module Oneboxer
         else
           # Topic Link
           topic = Topic.where(id: route[:topic_id].to_i).includes(:user).first
-          return linked unless topic
-          return linked unless Guardian.new.can_see?(topic)
+          return nil unless topic
+
+          return @url unless Guardian.new.can_see?(topic)
 
           post = topic.posts.first
 

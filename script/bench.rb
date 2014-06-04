@@ -2,20 +2,11 @@ require "socket"
 require "csv"
 require "yaml"
 
+@timings = {}
+
 def run(command)
   system(command, out: $stdout, err: :out)
 end
-
-begin
-  require 'facter'
-rescue LoadError
-  run "gem install facter"
-  puts "just installed the facter gem, please re-run script"
-  exit
-end
-
-@timings = {}
-
 
 def measure(name)
   start = Time.now
@@ -107,8 +98,6 @@ def bench(path)
 end
 
 begin
-  # critical cause cache may be incompatible or something
-  `rm -fr tmp/cache`
   pid = spawn("bundle exec thin start -p #{@port}")
 
   while port_available? @port
@@ -117,20 +106,10 @@ begin
 
   puts "Starting benchmark..."
 
-  # asset precompilation is a dog, wget to force it
-  run "wget http://127.0.0.1:#{@port}/ -o tmp/test.html"
   home_page = bench("/")
   topic_page = bench("/t/oh-how-i-wish-i-could-shut-up-like-a-tunnel-for-so/69")
 
   puts "Your Results: (note for timings- percentile is first, duration is second in millisecs)"
-
-  facts = Facter.to_hash
-
-  facts.delete_if{|k,v|
-    !["operatingsystem","architecture","kernelversion",
-    "memorysize", "physicalprocessorcount", "processor0",
-    "virtual"].include?(k)
-  }
 
   puts({
     "home_page" => home_page,
@@ -138,9 +117,7 @@ begin
     "timings" => @timings,
     "ruby-version" => "#{RUBY_VERSION}-p#{RUBY_PATCHLEVEL}",
     "rails4?" => ENV["RAILS4"] == "1"
-  }.merge(facts).to_yaml)
-
-  # TODO include Facter.to_hash ... for all facts
+  }.to_yaml)
 
 ensure
   Process.kill "KILL", pid

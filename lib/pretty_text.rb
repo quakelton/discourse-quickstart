@@ -96,6 +96,7 @@ module PrettyText
              "app/assets/javascripts/external/md5.js",
               "app/assets/javascripts/external/lodash.js",
               "app/assets/javascripts/external/Markdown.Converter.js",
+              "app/assets/javascripts/external/twitter-text-1.5.0.js",
               "lib/headless-ember.js",
               "app/assets/javascripts/external/rsvp.js",
               Rails.configuration.ember.handlebars_location)
@@ -104,19 +105,10 @@ module PrettyText
     ctx.eval("var window = {}; window.devicePixelRatio = 2;") # hack to make code think stuff is retina
     ctx.eval("var I18n = {}; I18n.t = function(a,b){ return helpers.t(a,b); }");
 
-    decorate_context(ctx)
-
     ctx_load(ctx,
-              "app/assets/javascripts/external/better_markdown.js",
-              "app/assets/javascripts/discourse/dialects/dialect.js",
+              "app/assets/javascripts/discourse/components/bbcode.js",
               "app/assets/javascripts/discourse/components/utilities.js",
               "app/assets/javascripts/discourse/components/markdown.js")
-
-    Dir["#{Rails.root}/app/assets/javascripts/discourse/dialects/**.js"].each do |dialect|
-      unless dialect =~ /\/dialect\.js$/
-        ctx.load(dialect)
-      end
-    end
 
     # Load server side javascripts
     if DiscoursePluginRegistry.server_side_javascripts.present?
@@ -147,13 +139,6 @@ module PrettyText
     @ctx
   end
 
-  def self.decorate_context(context)
-    context.eval("Discourse.SiteSettings = #{SiteSetting.client_settings_json};")
-    context.eval("Discourse.CDN = '#{Rails.configuration.action_controller.asset_host}';")
-    context.eval("Discourse.BaseUrl = 'http://#{RailsMultisite::ConnectionManagement.current_hostname}';")
-    context.eval("Discourse.getURL = function(url) {return '#{Discourse::base_uri}' + url};")
-  end
-
   def self.markdown(text, opts=nil)
     # we use the exact same markdown converter as the client
     # TODO: use the same extensions on both client and server (in particular the template for mentions)
@@ -163,7 +148,9 @@ module PrettyText
     @mutex.synchronize do
       context = v8
       # we need to do this to work in a multi site environment, many sites, many settings
-      decorate_context(context)
+      context.eval("Discourse.SiteSettings = #{SiteSetting.client_settings_json};")
+      context.eval("Discourse.BaseUrl = 'http://#{RailsMultisite::ConnectionManagement.current_hostname}';")
+      context.eval("Discourse.getURL = function(url) {return '#{Discourse::base_uri}' + url};")
       context['opts'] = opts || {}
       context['raw'] = text
       context.eval('opts["mentionLookup"] = function(u){return helpers.is_username_valid(u);}')
@@ -182,7 +169,9 @@ module PrettyText
     @mutex.synchronize do
       v8['avatarTemplate'] = avatar_template
       v8['size'] = size
-      decorate_context(v8)
+      v8.eval("Discourse.SiteSettings = #{SiteSetting.client_settings_json};")
+      v8.eval("Discourse.CDN = '#{Rails.configuration.action_controller.asset_host}';")
+      v8.eval("Discourse.BaseUrl = '#{RailsMultisite::ConnectionManagement.current_hostname}';")
       r = v8.eval("Discourse.Utilities.avatarImg({ avatarTemplate: avatarTemplate, size: size });")
     end
     r

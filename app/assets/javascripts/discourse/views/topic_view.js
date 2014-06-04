@@ -25,7 +25,7 @@ Discourse.TopicView = Discourse.View.extend(Discourse.Scrolling, {
   }.observes('controller.streamPercentage'),
 
   updateProgressBar: function() {
-    var $topicProgress = this._topicProgress;
+    var $topicProgress = this.topicProgress;
 
     // cache lookup
     if (!$topicProgress) {
@@ -33,7 +33,7 @@ Discourse.TopicView = Discourse.View.extend(Discourse.Scrolling, {
       if (!$topicProgress.length) {
         return;
       }
-      this._topicProgress = $topicProgress;
+      this.topicProgress = $topicProgress;
     }
 
     // speeds up stuff, bypass jquery slowness and extra checks
@@ -88,7 +88,6 @@ Discourse.TopicView = Discourse.View.extend(Discourse.Scrolling, {
   }.observes('composer'),
 
   enteredTopic: function() {
-    this._topicProgress = undefined;
     if (this.present('controller.enteredAt')) {
       var topicView = this;
       Em.run.schedule('afterRender', function() {

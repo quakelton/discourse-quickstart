@@ -40,7 +40,8 @@ Discourse.ActivityFilterView = Discourse.View.extend({
   }.property('content.action_type'),
 
   url: function() {
-    return "/users/" + this.get('user.username_lower') + "/activity" + this.get('typeKey');
+    var section = this.get('content.isPM') ? "/private-messages" : "/activity";
+    return "/users/" + this.get('user.username_lower') + section + this.get('typeKey');
   }.property('typeKey', 'user.username_lower'),
 
   description: function() {

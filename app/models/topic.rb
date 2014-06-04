@@ -10,26 +10,16 @@ class Topic < ActiveRecord::Base
   include ActionView::Helpers::SanitizeHelper
   include RateLimiter::OnCreateRecord
   include Trashable
-  extend Forwardable
-
-  def_delegator :featured_users, :user_ids, :featured_user_ids
-  def_delegator :featured_users, :choose, :feature_topic_users
-
-  def_delegator :notifier, :watch!, :notify_watch!
-  def_delegator :notifier, :tracking!, :notify_tracking!
-  def_delegator :notifier, :regular!, :notify_regular!
-  def_delegator :notifier, :muted!, :notify_muted!
-  def_delegator :notifier, :toggle_mute, :toggle_mute
 
   def self.max_sort_order
     2**31 - 1
   end
 
-  versioned if: :new_version_required?
-
-  def featured_users
-    @featured_users ||= TopicFeaturedUsers.new(self)
+  def self.featured_users_count
+    4
   end
+
+  versioned if: :new_version_required?
 
   def trash!(trashed_by=nil)
     update_category_topic_count_by(-1) if deleted_at.nil?
@@ -378,6 +368,9 @@ class Topic < ActiveRecord::Base
     changed_to_category(cat)
   end
 
+  def featured_user_ids
+    [featured_user1_id, featured_user2_id, featured_user3_id, featured_user4_id].uniq.compact
+  end
 
   def remove_allowed_user(username)
     user = User.where(username: username).first
@@ -473,6 +466,13 @@ class Topic < ActiveRecord::Base
     end
   end
 
+  # Chooses which topic users to feature
+  def feature_topic_users(args={})
+    reload unless rails4?
+    clear_featured_users
+    update_featured_users featured_user_keys(args)
+    save
+  end
 
   def posters_summary(options = {})
     @posters_summary ||= TopicPostersSummary.new(self, options).summary
@@ -563,10 +563,32 @@ class Topic < ActiveRecord::Base
     @topic_notifier ||= TopicNotifier.new(self)
   end
 
+  # notification stuff
+  def notify_watch!(user)
+    notifier.watch! user
+  end
+
+  def notify_tracking!(user)
+    notifier.tracking! user
+  end
+
+  def notify_regular!(user)
+    notifier.regular! user
+  end
+
+  def notify_muted!(user)
+    notifier.muted! user
+  end
+
   def muted?(user)
     if user && user.id
       notifier.muted?(user.id)
     end
+  end
+
+  # Enable/disable the mute on the topic
+  def toggle_mute(user_id)
+    notifier.toggle_mute user_id
   end
 
   def auto_close_days=(num_days)
@@ -602,6 +624,30 @@ class Topic < ActiveRecord::Base
       end
     end
 
+    def featured_user_keys(args)
+      # Don't include the OP or the last poster
+      to_feature = posts.where('user_id NOT IN (?, ?)', user_id, last_post_user_id)
+
+      # Exclude a given post if supplied (in the case of deletes)
+      to_feature = to_feature.where("id <> ?", args[:except_post_id]) if args[:except_post_id].present?
+
+
+      # Assign the featured_user{x} columns
+      to_feature.group(:user_id).order('count_all desc').limit(Topic.featured_users_count).count.keys
+    end
+
+
+    def clear_featured_users
+      Topic.featured_users_count.times do |i|
+        send("featured_user#{i+1}_id=", nil)
+      end
+    end
+
+    def update_featured_users(user_keys)
+      user_keys.each_with_index do |user_id, i|
+        send("featured_user#{i+1}_id=", user_id)
+      end
+    end
 end
 
 # == Schema Information

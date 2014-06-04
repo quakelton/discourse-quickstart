@@ -703,9 +703,9 @@ table {
 .screened-emails, .screened-urls {
   width: 900px;
   .email, .url {
-    width: 300px;
+    width: 400px;
   }
-  .action, .match_count, .last_match_at, .created_at, .ip_address {
+  .action, .match_count, .last_match_at, .created_at {
     width: 110px;
     text-align: center;
   }
@@ -804,11 +804,5 @@ table {
   .ember-list-item-view {
     width: 100%;
     border-top: solid 1px #ddd;
-  }
-}
-
-.log-details-modal {
-  .modal-tab {
-    width: 95%;
   }
 }

@@ -101,10 +101,7 @@ Discourse.TopicRoute = Discourse.Route.extend({
   },
 
   setupController: function(controller, model) {
-    controller.setProperties({
-      model: model,
-      editingTopic: false
-    });
+    controller.set('model', model);
 
     this.controllerFor('header').setProperties({
       topic: model,
