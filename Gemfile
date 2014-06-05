@@ -1,4 +1,4 @@
-source 'https://rubygems.org'
+source 'http://mirror1.ops.rhcloud.com/mirror/ruby/'
 
 module ::Kernel
   def rails_master?
