@@ -267,7 +267,7 @@ GEM
       thor (>= 0.18.1, < 2.0)
     raindrops (0.13.0)
     rake (10.3.1)
-    rake-compiler (0.9.2)
+    rake-compiler (0.8.3)
       rake
     rb-fsevent (0.9.4)
     rb-inotify (0.9.3)
